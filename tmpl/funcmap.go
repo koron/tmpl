@@ -1,6 +1,6 @@
 package tmpl
 
-import "github.com/alecthomas/template"
+import "text/template"
 
 var funcmap = template.FuncMap{}
 

@@ -4,8 +4,9 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
+	"path/filepath"
+	"text/template"
 
-	"github.com/alecthomas/template"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -26,7 +27,12 @@ func readYAML(r io.Reader) (interface{}, error) {
 }
 
 func Execute(inYaml io.Reader, out io.Writer, tmplFiles ...string) error {
-	tmpl, err := template.New("").Funcs(funcmap).ParseFiles(tmplFiles...)
+	if len(tmplFiles) == 0 {
+		return errors.New("no template files")
+	}
+	name := filepath.Base(tmplFiles[0])
+
+	tmpl, err := template.New(name).Funcs(funcmap).ParseFiles(tmplFiles...)
 	if err != nil {
 		return err
 	}

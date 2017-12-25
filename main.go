@@ -10,7 +10,7 @@ import (
 func main() {
 	err := tmpl.Execute(os.Stdin, os.Stdout, os.Args[1:]...)
 	if err != nil {
-		fmt.Println(os.Stderr, err)
+		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 }
