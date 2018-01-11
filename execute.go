@@ -7,12 +7,13 @@ import (
 	"text/template"
 )
 
-type LoadDataFunc func() (interface{}, error)
+// DataFunc provides data for tmpl.Execute()
+type DataFunc func() (interface{}, error)
 
 // Execute executes templates set.
 //
-// If loadData is omitted, YAML is loaded by tmpl.LoadYAML
-func Execute(loadData LoadDataFunc, out io.Writer, tmplFiles ...string) error {
+// If dataFunc is omitted, YAML is loaded by tmpl.LoadYAML
+func Execute(dataFunc DataFunc, out io.Writer, tmplFiles ...string) error {
 	if len(tmplFiles) == 0 {
 		return errors.New("no template files")
 	}
@@ -23,10 +24,10 @@ func Execute(loadData LoadDataFunc, out io.Writer, tmplFiles ...string) error {
 		return err
 	}
 
-	if loadData == nil {
-		loadData = LoadYAML
+	if dataFunc == nil {
+		dataFunc = LoadYAML
 	}
-	data, err := loadData()
+	data, err := dataFunc()
 	if err != nil {
 		return err
 	}
