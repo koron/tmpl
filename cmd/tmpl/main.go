@@ -1,14 +1,17 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 
-	"github.com/koron/tmpl/tmpl"
+	"github.com/koron/tmpl"
 )
 
 func main() {
-	err := tmpl.Execute(os.Stdin, os.Stdout, os.Args[1:]...)
+	flag.Parse()
+
+	err := tmpl.Execute(nil, os.Stdout, flag.Args()...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err.Error())
 		os.Exit(1)
