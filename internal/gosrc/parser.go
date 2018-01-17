@@ -8,6 +8,7 @@ import (
 	"go/token"
 	"log"
 	"os"
+	"regexp"
 	"strconv"
 )
 
@@ -123,6 +124,100 @@ type Var struct {
 type Field struct {
 	Name string
 	Type string
+	Tag  *Tag
+}
+
+// Tag represents a tag for field
+type Tag struct {
+	Raw    string
+	Values map[string]*TagValue
+}
+
+func parseTag(tag string) *Tag {
+	raw := tag
+	values := map[string]*TagValue{}
+	// parse tag: partially copied from reflect.StructTag.Lookup()
+	for tag != "" {
+		// Skip leading space.
+		i := 0
+		for i < len(tag) && tag[i] == ' ' {
+			i++
+		}
+		tag = tag[i:]
+		if tag == "" {
+			break
+		}
+
+		// Scan to colon.
+		i = 0
+		for i < len(tag) && tag[i] > ' ' && tag[i] != ':' && tag[i] != '"' && tag[i] != 0x7f {
+			i++
+		}
+		if i == 0 || i+1 >= len(tag) || tag[i] != ':' || tag[i+1] != '"' {
+			break
+		}
+		name := string(tag[:i])
+		tag = tag[i+1:]
+
+		// Scan quoted string to find value.
+		i = 1
+		for i < len(tag) && tag[i] != '"' {
+			if tag[i] == '\\' {
+				i++
+			}
+			i++
+		}
+		if i >= len(tag) {
+			break
+		}
+		qvalue := string(tag[:i+1])
+		tag = tag[i+1:]
+
+		value, err := strconv.Unquote(qvalue)
+		if err != nil {
+			break
+		}
+		values[name] = parseTagValue(value)
+	}
+	return &Tag{
+		Raw:    raw,
+		Values: values,
+	}
+}
+
+func (tag *Tag) match(name string, value *string) bool {
+	for k, v := range tag.Values{
+		if k == name {
+			if value == nil || v.has(*value) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var tagValueRx = regexp.MustCompile(`\s+`)
+
+// TagValue represents content of a tag.
+type TagValue struct {
+	Raw    string
+	Values []string
+}
+
+func parseTagValue(s string) *TagValue {
+	return &TagValue{
+		Raw:    s,
+		Values: tagValueRx.Split(s, -1),
+	}
+}
+
+func (tv *TagValue) has(value string) bool {
+	for _, v := range tv.Values  {
+		if v == value {
+			return true
+		}
+	}
+	return false
 }
 
 // Func represents a function.
@@ -162,6 +257,20 @@ func (t *Type) putEmbedded(typeName string) {
 		t.Embedded = make(map[string]struct{})
 	}
 	t.Embedded[typeName] = struct{}{}
+}
+
+// FieldsByTag collects fields which match with query.
+// The query's format is "{tagName}" or "{tagName}:{value}".
+func (t *Type) FieldsByTag(tagQuery string) []*Field {
+	var hits []*Field
+	var name string
+	var value *string
+	for _, f := range t.Fields {
+		if f.Tag != nil && f.Tag.match(name, value) {
+			hits = append(hits, f)
+		}
+	}
+	return hits
 }
 
 // Value represents a value or const
@@ -334,10 +443,31 @@ func (p *Parser) toVar(f *ast.Field) (*Var, error) {
 }
 
 func (p *Parser) toField(f *ast.Field) (*Field, error) {
+	tag, err := p.toTag(f.Tag)
+	if err != nil {
+		return nil, err
+	}
 	return &Field{
 		Name: firstName(f.Names),
 		Type: typeString(f.Type),
+		Tag:  tag,
 	}, nil
+}
+
+func (p *Parser) toTag(x *ast.BasicLit) (*Tag, error) {
+	if x == nil {
+		return &Tag{}, nil
+	}
+	switch x.Kind {
+	case token.STRING:
+		v, err := strconv.Unquote(x.Value)
+		if err != nil {
+			return nil, err
+		}
+		return parseTag(v), nil
+	default:
+		return nil, fmt.Errorf("unsupported token for tag: %s", x.Kind)
+	}
 }
 
 func (p *Parser) readFile(file *ast.File) error {
